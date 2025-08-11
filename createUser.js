@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 // === CONFIGURE HERE ===
-const MONGO_URL = "mongodb://127.0.0.1:27017/church-management-local-spangles"; // Change if needed
+const MONGO_URL = "mongodb+srv://rohitspanglesinfotech:Z9KtcBAX8UWcDBg9@cluster0.tykfmzm.mongodb.net/church-management-local-spangles?retryWrites=true&w=majority"; // Change if needed
 const USERNAME = "Spangles Product";
 const PASSWORD = "spangles2016";
 
