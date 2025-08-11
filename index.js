@@ -19,6 +19,14 @@ const uploadDir = path.join(__dirname, "uploads/expense");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://spangles-church-product-frontend.vercel.app"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true
+}));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 const PORT = process.env.PORT || 5001;
