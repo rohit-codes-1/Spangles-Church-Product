@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use(cors({
   origin: [
-    "http://localhost:5173",
+    "http://localhost:5000",
     "https://spangles-church-product-frontend.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
