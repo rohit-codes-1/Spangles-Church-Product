@@ -20,7 +20,7 @@ async function generateFamilyCode() {
   // Format the code number with leading zeros
   const formattedCodeNumber = codeNumber.toString().padStart(5, "0");
   // console.log(formattedCodeNumber);
-  // Combine the pattern and code number
+  // Combine the pattern and code number 
   const pastorCode = `${patternPart}${formattedCodeNumber}`;
   // console.log(familyCode);
   return pastorCode;

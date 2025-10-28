@@ -17,7 +17,7 @@ const OfferingsSchema = new Schema({
     type: String,
   },
   date: {
-    type: Date,
+    type: Date, 
     required: true,
   },
   amount: {
@@ -26,7 +26,6 @@ const OfferingsSchema = new Schema({
   },
   description: {
     type: String,
-    required: true,
   },
 }, { timestamps: true });
 

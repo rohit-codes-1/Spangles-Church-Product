@@ -23,5 +23,5 @@ async function generateMemberCode() {
 
   return memberCode;
 }
-
+ 
 module.exports = generateMemberCode;

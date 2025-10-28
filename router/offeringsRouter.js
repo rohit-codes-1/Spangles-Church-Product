@@ -16,5 +16,7 @@ router.get('/bill/family-heads', offeringsController.getFamilyHeadsWithOfferings
 router.get("/bill/family-heads", offeringsController.getSortedFamilyHeads);
 router.get('/bill/overall', offeringsController.getOverallFamilyOfferings);
 
+router.get("/member/:member_id", offeringsController.getOfferingsByMember);
+ 
 
 module.exports = router;

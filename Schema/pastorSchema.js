@@ -15,7 +15,10 @@ const pastorMemberSchema = new mongoose.Schema(
     },
     mobile_number: {
       type: String,
+      required: true,
+      match: [/^\d{10}$/, "Mobile number must be exactly 10 digits"],
     },
+
     member_name: {
       type: String,
     },
@@ -25,7 +28,7 @@ const pastorMemberSchema = new mongoose.Schema(
     gender: {
       type: String,
       enum: ["Male", "Female", "Other"],
-    },
+    }, 
     date_of_birth: {
       type: Date,
     },
@@ -33,6 +36,8 @@ const pastorMemberSchema = new mongoose.Schema(
       type: String,
       match: [/^\S+@\S+\.\S+$/, "Please use a valid email address."],
     },
+    husband_name: { type: String, default: null },   // ✅ new
+    father_name: { type: String, default: null },  
     occupation: {
       type: String,
     },
@@ -45,11 +50,23 @@ const pastorMemberSchema = new mongoose.Schema(
     member_photo: {
       type: String,
     },
-    permanent_address: {},
-    present_address: {},
+    permanent_address: { type: String },
+    present_address: { type: String },
+
 
     joined_date: {
       type: Date,
+    }, 
+    marriage_date: {
+      type: Date,
+    },
+    pastor_role: { type: String, enum: ["Primary", "Secondary"], required: true },
+    age: { type: Number },
+    aadhar_number: {
+      type: String,
+      required: false,
+      trim: true,
+      match: [/^\d{4}\s\d{4}\s\d{4}$/, "Invalid Aadhar Number format"], // Optional validation
     },
     reason_for_inactive: {
       type: String,

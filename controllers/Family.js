@@ -2,161 +2,53 @@ const Member = require("../Schema/memberSchema");
 const Family = require("../Schema/familySchema");
 const generateMemberCode = require("../util/MemberCodeGenerate");
 const generateFamilyCode = require("../util/FamilyId");
+const generateChildMemberCode = require("../util/ChildMemberCode");
+console.log("Loaded generateChildMemberCode:", typeof generateChildMemberCode);
+
+
 require("dotenv").config();
 
 
-// exports.getMembers = async (req, res) => {
-//   const page = parseInt(req.query.page) || 1;
-//   const limit = parseInt(req.query.limit) || 15;
-//   const status = req.query.status || ""; // Get the status from query params
-//   const search = req.query.search || "";
 
-//   try {
-//     if (search === "") {
-//       // If there's no search query, filter by status and paginate the results
-//       const familyData = await Family.find()
-//         .sort({ _id: 1 })
-//         .select("family_id head")
-//         .skip((page - 1) * limit)
-//         .limit(limit);
 
-//       let RegisteredData = [];
+// exports.generateMemberId = async (req, res) => {
+//   try {
+//     const { familyId, relationship } = req.body;
+//     console.log("GenerateMemberId called with:", req.body);
+//     let member_id;
+//     if (relationship === "Son" || relationship === "Daughter") {
+//       member_id = await generateChildMemberCode(familyId);
+//       console.log("Child ID generated:", member_id);
+//     } else {
+//       member_id = await generateMemberCode();
+//       console.log("Normal ID generated:", member_id);
+//     }
+    
 
-//       // Loop through each registered family and fetch corresponding members
-//       for (const family of familyData) {
-//         const familyMembers = await Member.findOne({
-//           member_id: family.head,
-//           ...(status && { status }), // Apply status filter if provided
-//         }).select(
-//           "member_id primary_family_id secondary_family_id member_name member_tamil_name status" // <-- ADDED 'member_tamil_name' here
-//         );
-
-//         // Combine the family and member information
-//         if (familyMembers) {
-//           RegisteredData.push({
-//             _id: familyMembers._id,
-//             family_id: family.family_id,
-//             head: family.head,
-//             member_name: familyMembers.member_name,
-//             member_tamil_name: familyMembers.member_tamil_name, // <-- ADDED this line
-//             status: familyMembers.status,
-//           });
-//         }
-//       }
-
-//       const totalItems = await Family.countDocuments();
-//       const TotalPages = Math.ceil(totalItems / limit);
-
-//       return res.json({
-//         message: "Get Member Data Successful",
-//         RegisteredData,
-//         totalItems,
-//         TotalPages,
-//         currentPage: page,
-//       });
-//     } else {
-//       // Define the filter for the search query
-//       const familyFilter = {};
-
-//       if (search) {
-//         const searchRegex = new RegExp(search.replace(/\s/g, ""), "i");
-
-//         familyFilter.$or = [
-//           { member_name: { $regex: searchRegex } },
-//           { member_tamil_name: { $regex: searchRegex } }, // <-- ADDED for search
-//           { member_id: { $regex: searchRegex } },
-//           { primary_family_id: { $regex: searchRegex } },
-//           { secondary_family_id: { $regex: searchRegex } },
-//         ];
-//       }
-
-//       if (status) {
-//         familyFilter.status = status; // Apply status filter
-//       }
-
-//       // Fetch registered family data with pagination and search filters
-//       const familyData = await Member.aggregate([
-//         {
-//           $addFields: {
-//             member_name_no_space: {
-//               $replaceAll: {
-//                 input: "$member_name",
-//                 find: " ",
-//                 replacement: "",
-//               },
-//             },
-//               member_tamil_name_no_space: { // <-- ADDED for search by tamil name
-//                 $replaceAll: {
-//                   input: "$member_tamil_name",
-//                   find: " ",
-//                   replacement: "",
-//                 },
-//               },
-//           },
-//         },
-//         {
-//           $match: familyFilter,
-//         },
-//         {
-//           $sort: { _id: 1 },
-//         },
-//         {
-//           $skip: (page - 1) * limit,
-//         },
-//         {
-//           $limit: limit,
-//         },
-//         {
-//           $lookup: {
-//             from: "familylists", // Ensure the correct collection name
-//             localField: "member_id",
-//             foreignField: "head",
-//             as: "familyDetails",
-//           },
-//         },
-//         {
-//           $unwind: "$familyDetails",
-//         },
-//         {
-//           $project: {
-//             member_id: 1,
-//             member_name: 1,
-//             member_tamil_name: 1, // <-- ADDED here
-//             status: 1,
-//             "familyDetails.family_id": 1,
-//             "familyDetails.head": 1,
-//           },
-//         },
-//       ]);
-
-//       // Prepare the registered data
-//       const RegisteredData = familyData.map((family) => ({
-//         _id: family._id,
-//         family_id: family.familyDetails.family_id,
-//         head: family.familyDetails.head,
-//         member_name: family.member_name,
-//         member_tamil_name: family.member_tamil_name, // <-- ADDED here
-//         status: family.status,
-//       }));
-
-//       const totalItems = await Member.countDocuments(familyFilter);
-//       const TotalPages = Math.ceil(totalItems / limit);
-
-//       return res.json({
-//         message: "Get Family Data Successful",
-//         RegisteredData,
-//         totalItems,
-//         TotalPages,
-//         currentPage: page,
-//       });
-//     }
-//   } catch (error) {
-//     console.error("Error:", error.message);
-//     return res
-//       .status(500)
-//       .json({ message: "Failed to fetch members", error: error.message });
-//   }
+//     res.json({ member_id });
+//   } catch (err) {
+//     console.error("Error generating member ID:", err);
+//     res.status(500).json({ message: "Failed to generate member ID" });
+//   }
 // };
+
+exports.generateMemberId = async (req, res) => {
+  try {
+    const { familyId, relationship } = req.body;
+    console.log("GenerateMemberId called with:", req.body);
+
+    // Always use generateMemberCode (ignore relationship check)
+    const member_id = await generateMemberCode();
+    console.log("Generated ID:", member_id);
+
+    res.json({ member_id });
+  } catch (err) {
+    console.error("Error generating member ID:", err);
+    res.status(500).json({ message: "Failed to generate member ID" });
+  }
+};
+
+
 
 exports.getMembers = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -397,41 +289,63 @@ exports.treeMembers  = async (req, res) => {
 };
 
 
+// exports.SingleGetMemberById = async (req, res) => {
+//   const { id } = req.params;
+
+//   try {
+//     // Array to accumulate all combined family and member data
+//     const FamilyData = await Family.find({ family_id: id }).select(
+//       "family_id head"
+//     );
+//     let RegisteredData = [];
+
+//     // Loop through each registered family and fetch corresponding members
+//     for (const family of FamilyData) {
+//       const familyMembers = await Member.findOne({
+//         member_id: family.head,
+//       }).select("member_id member_name member_tamil_name permanent_address marriage_date"); // <-- ADDED 'member_tamil_name' here
+
+//       // Combine the family and member information
+//       if (familyMembers) {
+//         RegisteredData.push({
+//           family_id: family.family_id,
+//           family_head_name: familyMembers.member_name,
+//           member_tamil_name: familyMembers.member_tamil_name, // <-- ADDED this line
+//           marriage_date: familyMembers.marriage_date,
+//           permanent_address: familyMembers.permanent_address,
+//         });
+//       }
+//     }
+//     return res
+//       .status(200)
+//       .json({ message: "Data", FamilyData: RegisteredData[0] });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Failed to fetch member", error: error.message });
+//   }
+// };
+
+
 exports.SingleGetMemberById = async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // this is member_id (e.g., MBR000006)
 
-  try {
-    // Array to accumulate all combined family and member data
-    const FamilyData = await Family.find({ family_id: id }).select(
-      "family_id head"
-    );
-    let RegisteredData = [];
+  try {
+    const member = await Member.findOne({ member_id: id }).select(
+      "member_id member_name member_tamil_name permanent_address marriage_date mobile_number status"
+    );
 
-    // Loop through each registered family and fetch corresponding members
-    for (const family of FamilyData) {
-      const familyMembers = await Member.findOne({
-        member_id: family.head,
-      }).select("member_id member_name member_tamil_name permanent_address marriage_date"); // <-- ADDED 'member_tamil_name' here
+    if (!member) {
+      return res.status(404).json({ message: "Member not found" });
+    }
 
-      // Combine the family and member information
-      if (familyMembers) {
-        RegisteredData.push({
-          family_id: family.family_id,
-          family_head_name: familyMembers.member_name,
-          member_tamil_name: familyMembers.member_tamil_name, // <-- ADDED this line
-          marriage_date: familyMembers.marriage_date,
-          permanent_address: familyMembers.permanent_address,
-        });
-      }
-    }
-    return res
-      .status(200)
-      .json({ message: "Data", FamilyData: RegisteredData[0] });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Failed to fetch member", error: error.message });
-  }
+    return res.status(200).json(member); // return full member object
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch member",
+      error: error.message,
+    });
+  }
 };
 
 
@@ -482,7 +396,7 @@ exports.familyTreeMembers = async (req, res) => {
       };
     };
 
-    const rootTree = buildTree("VKDMBR000001"); // Replace with your root family head ID
+    const rootTree = buildTree("MBR000001"); // Replace with your root family head ID
 
     const formatTree = (node, idCounter) => {
       if (!node) return null;
@@ -549,3 +463,29 @@ exports.getFullFamilyById = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+exports.getFamilyById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the family by family_id
+    const family = await Family.findOne({ family_id: id }).lean();
+    if (!family) {
+      return res.status(404).json({ message: "Family not found" });
+    }
+
+    // Fetch the head member details
+    const headMember = await Member.findOne({ member_id: family.head }).lean();
+
+    res.status(200).json({
+      ...family,
+      head_member: headMember || null, // ✅ include full head member details
+    });
+  } catch (error) {
+    console.error("Error fetching family with head member:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+

@@ -13,7 +13,7 @@ async function generatePastorFamilyMemberCode() {
   if (latestMember) {
     // Extract the code number from the latest Member code
     const latestCodeNumber = parseInt(latestMember.member_id.slice(-6));
-    codeNumber = latestCodeNumber + 1;
+    codeNumber = latestCodeNumber + 1; 
   }
 
   // Format the code number with leading zeros

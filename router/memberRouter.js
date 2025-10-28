@@ -3,6 +3,7 @@ const register = require("../controllers/Register");
 const Member_path = require("../controllers/Member");
 const multer = require("multer");
 const path = require('path');
+const Member = require("../Schema/memberSchema")
 // Multer storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -14,6 +15,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 const router = express.Router();
+const { convertToFullMember } = require("../controllers/Member");
 
 // router.post("/member/add/new", upload.fields([
 //     { name: 'member_photo', maxCount: 1 },
@@ -29,5 +31,6 @@ router.put(
   upload.single("member_photo"),
   Member_path.UpdateMemberById
 );
+router.put("/promote/:id", Member_path.promoteMember);
 
 module.exports = router;

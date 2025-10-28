@@ -2,7 +2,9 @@ const Member = require("../Schema/memberSchema");
 const Family = require("../Schema/familySchema");
 const generateMemberCode = require("../util/MemberCodeGenerate");
 const generateFamilyCode = require("../util/FamilyId");
+const generateNextMemberCode = require("../util/generateMemberCode");
 const path = require("path");
+
 
 exports.SingleGetMemberById = async (req, res) => {
   try {
@@ -52,76 +54,116 @@ exports.SingleGetMemberById = async (req, res) => {
 };
 
 
+
+
+
 exports.UpdateMemberById = async (req, res) => {
   const id = req.params.id;
 
   try {
-    const member = await Member.findOne({ member_id: id }).lean();
+    let member = await Member.findOne({ member_id: id });
     if (!member) {
       return res.status(404).json({ message: "Member not found" });
     }
 
-    // Handle member photo update
+    // Handle photo upload
     if (req.file) {
       req.body.member_photo = `/uploads/${req.file.filename}`;
     } else {
       delete req.body.member_photo;
     }
 
-    // Check and handle marriage date and family head
-    if (req.body.marriage_date) {
-      if (req.body.gender !== "Female") {
-        const familyMembers = await Family.find({ head: id });
+    let newMemberId = member.member_id; // default stays the same
 
-        if (familyMembers.length === 0) {
-          const family_id = await generateFamilyCode();
-          const newFamily = new Family({ family_id, head: id, members: [] });
-          await newFamily.save();
+    // ✅ Case 1: Promote Half → Full Member
+    if (
+      member.member_type === "Half Member" &&
+      req.body.member_type === "Full Member"
+    ) {
+      const latestFull = await Member.find({ member_id: /^MBR\d{6}$/ })
+        .sort({ member_id: -1 })
+        .limit(1);
 
-          req.body.secondary_family_id = family_id;
-        }
+      let nextNum = 1;
+      if (latestFull.length > 0) {
+        const latestId = latestFull[0].member_id;
+        const latestNum = parseInt(latestId.replace("MBR", ""), 10);
+        nextNum = latestNum + 1;
+      }
 
-        await Member.findOneAndUpdate({ member_id: id }, { ...req.body });
-      } else if (req.body.new_family === "true") {
-        const familyMembers = await Family.find({ head: id });
+      newMemberId = "MBR" + String(nextNum).padStart(6, "0");
+      req.body.member_id = newMemberId;
 
-        if (familyMembers.length === 0) {
-          const family_id = await generateFamilyCode();
-          const newFamily = new Family({ family_id, head: id, members: [] });
-          await newFamily.save();
+      // 🔗 update family refs so child stays inside family
+      await Family.updateMany(
+        { "members.ref_id": member.member_id },
+        { $set: { "members.$.ref_id": newMemberId } }
+      );
+    }
 
-          req.body.left_date = null;
-          req.body.reason_for_inactive = null;
-          req.body.description = null;
-          req.body.secondary_family_id = family_id;
-        }
+    // ✅ Case 2: Marriage → Create new family
+    // if (
+    //   req.body.marital_status === "Married" &&
+    //   req.body.new_family === true
+    // ) {
+    if (
+  req.body.marital_status === "Married" &&
+  (!member.secondary_family_id || req.body.new_family === true)
+) {
+
+      // check if already head of a family
+      let existingFamily = await Family.findOne({ head: newMemberId });
+
+      if (!existingFamily) {
+        const newFamilyId = await generateFamilyCode();
+
+        // create new family with this member as head
+        const newFamily = new Family({
+          family_id: newFamilyId,
+          head: newMemberId,
+          members: [],
+        });
+        await newFamily.save();
+
+        // update member with secondary_family_id
+        req.body.secondary_family_id = newFamilyId;
+
+        console.log(
+          `✅ New family ${newFamilyId} created for married member ${newMemberId}`
+        );
       }
     }
 
-    await Member.findOneAndUpdate({ member_id: id }, { ...req.body });
+    // Final update of member record
+    await Member.findOneAndUpdate({ member_id: id }, req.body, { new: true });
 
-    return res.status(200).json({ message: "Updated successfully" });
+    return res.status(200).json({
+      message: "Updated successfully",
+      new_member_id: newMemberId, // frontend uses this for redirect
+    });
   } catch (error) {
     console.error("Error updating member:", error);
-    return res.status(500).json({ message: "Failed to update member", error: error.message });
+    return res.status(500).json({
+      message: "Failed to update member",
+      error: error.message,
+    });
   }
 };
-
-
 
 exports.getMembers = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 15;
   const search = req.query.search || "";
-  const status = req.query.status || "";
-
+  const status = req.query.status?.trim(); // clean value
 
   try {
     const filter = {};
+
+    // Search filter
     if (search) {
       filter.$or = [
         { member_name: new RegExp(search, "i") },
-        { member_tamil_name: new RegExp(search, "i") }, // Added for search
+        { member_tamil_name: new RegExp(search, "i") },
         { member_id: new RegExp(search, "i") },
         { family_head_name: new RegExp(search, "i") },
         { primary_family_id: new RegExp(search, "i") },
@@ -130,16 +172,15 @@ exports.getMembers = async (req, res) => {
       ];
     }
 
-    if (status) {
-      filter.status = status; // Apply status filtering
+    // Status filter (skip if All or empty)
+    if (status && status !== "All") {
+      filter.status = status;
     }
 
     const memberData = await Member.find(filter)
       .sort({ _id: 1 })
-      .select(
-        "member_id primary_family_id secondary_family_id member_name member_tamil_name status" // <-- ADDED 'member_tamil_name' here
-      )
-      .skip((page - 1) * limit)
+      .select("member_id primary_family_id secondary_family_id member_name member_tamil_name status email")
+      .skip((page - 1) * limit) 
       .limit(limit);
 
     const totalItems = await Member.countDocuments(filter);
@@ -155,20 +196,23 @@ exports.getMembers = async (req, res) => {
         ],
       }).select("family_id head");
 
+      if (!familyMembers) {
+        continue; // skip if no family found
+      }
+
       const familyHead = await Member.findOne({
         member_id: familyMembers.head,
       }).select("member_name");
 
-      if (familyMembers && familyHead) {
-        RegisteredData.push({
-          member_id: member.member_id,
-          member_name: member.member_name,
-          member_tamil_name: member.member_tamil_name, // <-- ADDED this line
-          family_id: familyMembers.family_id,
-          family_head_name: familyHead.member_name,
-          status: member.status,
-        });
-      }
+      RegisteredData.push({
+        member_id: member.member_id,
+        member_name: member.member_name,
+        member_tamil_name: member.member_tamil_name,
+        family_id: familyMembers.family_id,
+        family_head_name: familyHead?.member_name || "", // safe access
+        status: member.status,
+        email: member.email,
+      });
     }
 
     return res.json({
@@ -179,147 +223,12 @@ exports.getMembers = async (req, res) => {
       currentPage: page,
     });
   } catch (error) {
+    console.error("Error in Member.getMembers:", error.message, error.stack);
     return res
       .status(500)
       .json({ message: "Failed to fetch members", error: error.message });
   }
 };
-
-
-// exports.getMembers = async (req, res) => {
-//     console.log("******** getMembers function IS RUNNING ********"); // IMPORTANT: This line should appear!
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 15;
-//     const status = req.query.status || "";
-//     const search = req.query.search || "";
-
-//     try {
-//         if (search === "") {
-//             const familyData = await Family.find()
-//                 .sort({ _id: 1 })
-//                 .select("family_id head")
-//                 .skip((page - 1) * limit)
-//                 .limit(limit);
-
-//             let RegisteredData = [];
-
-//             for (const family of familyData) {
-//                 console.log("DEBUG: Processing family:", family.family_id, "with head:", family.head);
-
-//                 const familyMembers = await Member.findOne({
-//                     member_id: family.head,
-//                     ...(status && { status }),
-//                 }).select(
-//                     "member_id primary_family_id secondary_family_id member_name member_tamil_name status"
-//                 );
-
-//                 // --- DEBUGGING LINE: This is the MOST IMPORTANT line. Check its output carefully! ---
-//                 console.log("DEBUG: Found familyMembers for head " + family.head + ":", familyMembers);
-
-//                 if (familyMembers) {
-//                     RegisteredData.push({
-//                         _id: familyMembers._id,
-//                         family_id: family.family_id,
-//                         head: family.head,
-//                         member_name: familyMembers.member_name,
-//                         member_tamil_name: familyMembers.member_tamil_name,
-//                         status: familyMembers.status,
-//                     });
-//                 }
-//                 console.log("DEBUG: Added to RegisteredData (one item):", RegisteredData[RegisteredData.length - 1]);
-//             }
-
-//             const totalItems = await Family.countDocuments();
-//             const TotalPages = Math.ceil(totalItems / limit);
-
-//             console.log("DEBUG: Final RegisteredData array before sending:", RegisteredData);
-
-//             return res.json({
-//                 message: "Get Member Data Successful",
-//                 RegisteredData,
-//                 totalItems,
-//                 TotalPages,
-//                 currentPage: page,
-//             });
-//         } else {
-//             // If you are using the search bar, this path will be executed.
-//             // We need to add similar console.logs here if the issue is with search.
-//             // For now, assume the primary issue is the non-search path.
-//             const familyFilter = {};
-//             if (search) {
-//                 const searchRegex = new RegExp(search.replace(/\s/g, ""), "i");
-//                 familyFilter.$or = [
-//                     { member_name: { $regex: searchRegex } },
-//                     { member_tamil_name: { $regex: searchRegex } },
-//                     { member_id: { $regex: searchRegex } },
-//                     { primary_family_id: { $regex: searchRegex } },
-//                     { secondary_family_id: { $regex: searchRegex } },
-//                 ];
-//             }
-//             if (status) {
-//                 familyFilter.status = status;
-//             }
-
-//             const familyData = await Member.aggregate([
-//                 { $addFields: {
-//                     member_name_no_space: { $replaceAll: { input: "$member_name", find: " ", replacement: "", }, },
-//                     member_tamil_name_no_space: { $replaceAll: { input: "$member_tamil_name", find: " ", replacement: "", }, },
-//                 },
-//                 },
-//                 { $match: familyFilter },
-//                 { $sort: { _id: 1 } },
-//                 { $skip: (page - 1) * limit },
-//                 { $limit: limit },
-//                 { $lookup: {
-//                     from: "familylists", // Ensure the correct collection name
-//                     localField: "member_id",
-//                     foreignField: "head",
-//                     as: "familyDetails",
-//                 },
-//                 },
-//                 { $unwind: "$familyDetails" },
-//                 { $project: {
-//                     member_id: 1,
-//                     member_name: 1,
-//                     member_tamil_name: 1,
-//                     status: 1,
-//                     "familyDetails.family_id": 1,
-//                     "familyDetails.head": 1,
-//                 },
-//                 },
-//             ]);
-
-//             console.log("DEBUG: Aggregated familyData (search path):", familyData);
-
-//             const RegisteredData = familyData.map((family) => ({
-//                 _id: family._id,
-//                 family_id: family.familyDetails.family_id,
-//                 head: family.familyDetails.head,
-//                 member_name: family.member_name,
-//                 member_tamil_name: family.member_tamil_name,
-//                 status: family.status,
-//             }));
-
-//             console.log("DEBUG: Final RegisteredData array before sending (search path):", RegisteredData);
-
-//             const totalItems = await Member.countDocuments(familyFilter);
-//             const TotalPages = Math.ceil(totalItems / limit);
-
-//             return res.json({
-//                 message: "Get Family Data Successful",
-//                 RegisteredData,
-//                 totalItems,
-//                 TotalPages,
-//                 currentPage: page,
-//             });
-//         }
-//     } catch (error) {
-//         console.error("Error in getMembers:", error.message, error.stack);
-//         return res
-//             .status(500)
-//             .json({ message: "Failed to fetch members", error: error.message });
-//     }
-// };
 
 exports.downloadMembers = async (req, res) => {
   try {
@@ -333,7 +242,7 @@ exports.downloadMembers = async (req, res) => {
     // Fetch all members based on the filter
     const memberData = await Member.find(filter)
       .sort({ _id: 1 })
-      .select("member_id primary_family_id secondary_family_id member_name member_tamil_name status"); // <-- ADDED 'member_tamil_name' here
+      .select("member_id primary_family_id secondary_family_id member_name member_tamil_name status email"); // <-- ADDED 'member_tamil_name' here
 
     // Extract all family IDs and heads for a single batch query
     const familyIds = memberData.reduce((ids, member) => {
@@ -373,6 +282,7 @@ exports.downloadMembers = async (req, res) => {
         family_id: primaryFamilyId || secondaryFamilyId,
         family_head_name: familyHeadName || "N/A",
         status: member.status,
+        email: member.email,
       };
     });
 
@@ -386,3 +296,55 @@ exports.downloadMembers = async (req, res) => {
       .json({ message: "Failed to fetch members", error: error.message });
   }
 };
+
+
+
+
+exports.promoteMember = async (req, res) => {
+  const id = req.params.id; // old member_id like MBR000001-B
+
+  try {
+    const member = await Member.findOne({ member_id: id });
+    if (!member) {
+      return res.status(404).json({ message: "Member not found" });
+    }
+
+    if (member.member_type !== "Half Member") {
+      return res.status(400).json({ message: "Only Half Members can be promoted" });
+    }
+
+    // Generate new sequential ID (no suffix)
+    const newMemberId = await generateMemberCode();
+
+    // Save old id for updating references
+    const oldMemberId = member.member_id;
+
+    // Update the member itself
+    member.member_type = "Full Member";
+    member.member_id = newMemberId;
+    Object.assign(member, req.body);
+    await member.save();
+
+    // ✅ Update ALL Family.members[].ref_id occurrences
+    await Family.updateMany(
+      { "members.ref_id": oldMemberId },
+      { $set: { "members.$.ref_id": newMemberId } }
+    );
+
+    console.log(`Updated family ref_id from ${oldMemberId} → ${newMemberId}`);
+
+    return res.status(200).json({
+      message: "Member promoted to Full Member successfully",
+      new_member_id: newMemberId,
+    });
+  } catch (error) {
+    console.error("Error promoting member:", error);
+    return res.status(500).json({
+      message: "Failed to promote member",
+      error: error.message,
+    });
+  }
+};
+
+
+

@@ -2,12 +2,12 @@ const Offerings = require('../Schema/offerSchema');
 const Member = require("../Schema/memberSchema");
 const Family = require("../Schema/familySchema");
 const PastorMember = require("../Schema/pastorSchema");
-const PastorFamilyMember = require("../Schema/pastorFamilyMemberSchema");
+const PastorFamilyMember = require("../Schema/pastorFamilyMemberSchema"); 
 
 // Controller functions
 const addOffering = async (req, res) => {
   try {
-    const { category, member_id, member_name, date, amount, description } = req.body;
+    const { category, member_id, member_name,member_tamil_name, date, amount, description } = req.body;
     // console.log(req.body);
 
     let memberData = null; // Declare memberData at the top
@@ -17,17 +17,17 @@ const addOffering = async (req, res) => {
       // console.log("memberData enter");
 
       memberData = await PastorMember.findOne({ member_id })
-      .select("member_id member_photo member_name") // Ensure member_tamil_name is selected
+      .select("member_id member_photo member_name member_tamil_name") // Ensure member_tamil_name is selected
       .lean();
 
     // If not found, search in PastorFamilyMember collection
     if (!memberData) {
       memberData = await PastorFamilyMember.findOne({ member_id })
-        .select("member_id member_photo member_name") // Ensure member_tamil_name is selected
+        .select("member_id member_photo member_name member_tamil_name") // Ensure member_tamil_name is selected
         .lean();
     }
     if (!memberData) {
-      memberData = await Member.findOne({member_id}).select("member_id member_photo member_name").lean(); // Ensure member_tamil_name is selected
+      memberData = await Member.findOne({member_id}).select("member_id member_photo member_name member_tamil_name").lean(); // Ensure member_tamil_name is selected
     }
       // console.log(memberData);
 
@@ -36,7 +36,7 @@ const addOffering = async (req, res) => {
       }
     }
 
-    const newOffering = new Offerings({ category, member_id, member_name,  date, amount, description });
+    const newOffering = new Offerings({ category, member_id, member_name, member_tamil_name,  date, amount, description });
     await newOffering.save();
 
     // Construct the response object
@@ -45,6 +45,7 @@ const addOffering = async (req, res) => {
       offeringWithPhoto = {
         ...newOffering.toObject(), // Convert Mongoose document to plain object
         member_photo: memberData.member_photo, // Only include member_photo if memberData exists
+        member_tamil_name: memberData.member_tamil_name,
       };
     } else {
       offeringWithPhoto = {
@@ -173,7 +174,7 @@ const getOfferingsByCategoryAndDate = async (req, res) => {
     const totalData = await Offerings.countDocuments(query);
 
     // Query for offerings with sorting
-    let offeringsQuery = Offerings.find(query).sort({ createdAt: -1 });
+    let offeringsQuery = Offerings.find(query).sort({ date: -1 });
 
     // If not downloading, apply pagination
     if (!download) {
@@ -239,7 +240,7 @@ for (let offering of offerings) {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};
+}; 
 
 
 const getMarriageOfferingsByCategoryAndDate = async (req, res) => {
@@ -268,27 +269,6 @@ const getMarriageOfferingsByCategoryAndDate = async (req, res) => {
       offeringsQuery = offeringsQuery.skip(skip).limit(parseInt(limit));
     }
 
-    // Fetch offerings already written earlier
-    // let offerings = await offeringsQuery.lean();
-
-    // // **Find and add the wife’s name and Tamil name for each offering**
-    // for (let offering of offerings) {
-    //   const family = await Family.findOne({ head: offering.member_id },);
-
-    //   if (family) {
-    //     const wife = family.members.find(member => member.relationship_with_family_head === "Wife");
-
-    //     if (wife) {
-    //       const wifeDetails = await Member.findOne({ member_id: wife.ref_id })
-    //             .select("member_name member_tamil_name"); // <--- CRITICAL: Ensure member_tamil_name is selected here
-
-    //       if (wifeDetails) {
-    //         offering.member_wife = wifeDetails.member_name; 
-    //         offering.member_wife_tamil_name = wifeDetails.member_tamil_name; // Assign wife's Tamil name
-    //       }
-    //     }
-    //   }
-    // }
 
 
 
@@ -436,31 +416,7 @@ const getFamilyHeadsWithOfferings = async (req, res) => {
       ];
     }
 
-    // Aggregate families with at least one offering by any member
-    // const families = await Family.aggregate([
-    //   { $unwind: "$members" },
-    //   {
-    //     $lookup: {
-    //       from: "offerings",
-    //       localField: "members.ref_id",
-    //       foreignField: "member_id",
-    //       as: "member_offerings"
-    //     }
-    //   },
-    //   { $match: { "member_offerings.0": { $exists: true } } },
-    //   { $match: familyFilter },
-    //   {
-    //     $group: {
-    //       _id: "$family_id",
-    //       head: { $first: "$head" },
-    //       family_id: { $first: "$family_id" },
-    //       latestOfferingDate: { $max: "$member_offerings.date" } ,
-    //     }
-    //   },
-    //   { $sort: { latestOfferingDate: -1 } },
-    //   { $skip: skip },
-    //   { $limit: Number(limit) },
-    // ]);
+
     const families = await Family.aggregate([
   { $unwind: "$members" },
   {
@@ -625,122 +581,6 @@ const getSortedFamilyHeads = async (req, res) => {
 };
 
 
-// ✅ Get Overall Offerings Grouped by Family
-// controllers/Offerings.js
-
-// const getOverallFamilyOfferings = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 15, fromdate, todate, search = "" } = req.query;
-//     const skip = (page - 1) * limit;
-
-//     let dateFilter = {};
-//     if (fromdate) dateFilter.$gte = new Date(fromdate);
-//     if (todate) dateFilter.$lte = new Date(todate);
-
-
-//     const familyQuery = search
-//   ? {
-//       $or: [
-//         { family_id: { $regex: search, $options: "i" } },
-//         { head: { $regex: search, $options: "i" } }
-//       ]
-//     }
-//   : {};
-
-// const allFamilies = await Family.find(familyQuery).lean();
-
-//     const filteredFamilies = [];
-
-//     for (const family of allFamilies) {
-//       const headId = family.head;
-
-//       const headDetails = await Member.findOne({ member_id: headId }).lean();
-//       if (!headDetails) continue;
-
-//       const memberIds = [headId, ...family.members.map((m) => m.ref_id)];
-
-//       const allMembers = await Member.find({
-//         member_id: { $in: memberIds },
-//       }).lean();
-
-//       // ✅ Get the most recent offering based on createdAt
-//       const latestOffering = await Offerings.findOne({
-//         member_id: { $in: memberIds },
-//         ...(fromdate || todate ? { date: dateFilter } : {})
-//       })
-//         .sort({ createdAt: -1 }) // Most precise timestamp-based sorting
-//         .lean();
-
-//       if (!latestOffering) continue;
-
-//       const latestOfferingDate = latestOffering.createdAt;
-
-//       // ✅ Fetch all offerings for members
-//       const offerings = await Offerings.find({
-//         member_id: { $in: memberIds },
-//         ...(fromdate || todate ? { date: dateFilter } : {})
-//       }).lean();
-
-      
-//       // const memberOfferingMap = {};
-//       // for (const member of allMembers) {
-//       //   memberOfferingMap[member.member_id] = {
-//       //     ...member,
-//       //     offerings: offerings.filter(
-//       //       (o) => o.member_id === member.member_id
-//       //     ),
-//       //   };
-//       // }
-
-//       const memberOfferingMap = {};
-//       for (const member of allMembers) {
-//         const relationEntry = family.members.find(m => m.ref_id === member.member_id);
-//         const relation = headId === member.member_id ? "Head" : relationEntry?.relationship_with_family_head || "";
-
-//         memberOfferingMap[member.member_id] = {
-//           ...member,
-//           relation,
-//           offerings: offerings.filter(
-//             (o) => o.member_id === member.member_id
-//           ),
-//         };
-//       }
-
-//       filteredFamilies.push({
-//         family_id: family.family_id,
-//         head: headDetails.member_id,
-//         member_name: headDetails.member_name,
-//         member_tamil_name: headDetails.member_tamil_name,
-//         latestOfferingDate,
-//         members: Object.values(memberOfferingMap),
-//       });
-//     }
-
-//     // ✅ Sort all families globally BEFORE pagination
-//     filteredFamilies.sort(
-//       (a, b) =>
-//         new Date(b.latestOfferingDate) - new Date(a.latestOfferingDate)
-//     );
-
-//     // ✅ Now paginate
-//     const total = filteredFamilies.length;
-//     const totalPages = Math.ceil(total / limit);
-//     const paginatedData = filteredFamilies.slice(
-//       skip,
-//       skip + parseInt(limit)
-//     );
-
-//     res.status(200).json({
-//       data: paginatedData,
-//       total,
-//       totalPages,
-//       currentPage: parseInt(page),
-//     });
-//   } catch (err) {
-//     console.error("Error in getOverallFamilyOfferings:", err);
-//     res.status(500).json({ error: "Internal Server Error" });
-//   }
-// };
 
 
 const getOverallFamilyOfferings = async (req, res) => {
@@ -841,6 +681,26 @@ const getOverallFamilyOfferings = async (req, res) => {
   }
 };
 
+// Get offerings for a specific member
+const getOfferingsByMember = async (req, res) => {
+  try {
+    const { member_id } = req.params;
+    if (!member_id) {
+      return res.status(400).json({ error: "Member ID is required" });
+    }
+
+    const offerings = await Offerings.find({ member_id })
+      .sort({ date: -1 })
+      .select("category date amount");
+
+    res.status(200).json(offerings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+
 
 
 
@@ -861,5 +721,6 @@ module.exports = {
   getFamilyHeadsWithOfferings,
   getSortedFamilyHeads,
   getOverallFamilyOfferings,
+  getOfferingsByMember,
 
 };

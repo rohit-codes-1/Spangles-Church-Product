@@ -3,22 +3,25 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/AdminLog');
 
+
+router.post("/signup-request", userController.signupRequest);
+router.post("/verify-otp", userController.verifyOtp);
+
+router.post('/complete-signup', userController.completeSignup);
 // Create a new user
-router.post('/createUser', userController.createUser);
+
 //  LogIn user (or) Admin
 router.post('/login', userController.login);
 
-// // Get all users
-// router.get('/', userController.getAllUsers);
+router.get("/users", userController.getUsers);
 
-// // Get a user by ID
-// router.get('/:id', userController.getUserById);
+router.get("/users/cemetery-managers", userController.getCemeteryManagers);
 
-// // Update a user by ID
-// router.patch('/:id', userController.updateUserById);
+router.put("/users/update-role", userController.updateUserRole);
 
-// // Delete a user by ID
-// router.delete('/:id', userController.deleteUserById);
+// Admin creates user with roles before signup
+router.post("/users/create-by-admin", userController.createUserByAdmin);
+
 
 module.exports = router;
 
